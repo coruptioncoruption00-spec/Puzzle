@@ -18,10 +18,10 @@
 							<button id="preset20">Пазл #20</button>
 							<button id="preset70">Пазл #70</button>
 							<button id="preset71">Пазл #71</button>
-									<label style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
-										<input id="turboToggle" type="checkbox" />
-										<span>Turbo</span>
-									</label>
+							<div style="display:flex; gap:6px; align-items:center;">
+								<input id="puzzleNum" type="number" min="1" max="256" placeholder="#" style="width:88px;" />
+								<button id="presetByNum">По №</button>
+							</div>
 						</div>
 						<div class="grid">
 					<div>
@@ -43,6 +43,7 @@
 						<input id="stopKey" type="text" class="mono" placeholder="например: 000...0fffff" />
 					</div>
 				</div>
+
 						<div class="row" style="margin-top:10px; justify-content:center;">
 							<button id="startBtn" class="primary">Старт</button>
 							<button id="stopBtn" class="warn" disabled>Стоп</button>
@@ -75,6 +76,15 @@
 				<div style="font-weight:700;margin-bottom:6px;">Результат</div>
 				<div id="result" class="mono">—</div>
 			</div>
+
+						<div class="card">
+							<div style="font-weight:700;margin-bottom:6px;">Похожие (near) совпадения</div>
+							<div class="mono" id="nearBox" style="white-space:pre; color:var(--muted); font-size:12px;">Топ совпадений по префиксу HASH160 будет появляться в логах.</div>
+						</div>
+
+						<div class="grid" style="margin-top:10px; align-items:end;">
+
+						</div>
 
 			<div class="card">
 				<div style="font-weight:700;margin-bottom:6px;">Диагностика (локально)</div>
