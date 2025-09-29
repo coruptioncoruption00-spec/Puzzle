@@ -7,6 +7,8 @@ import { secp256k1 as secpC } from 'https://esm.sh/@noble/curves@1.4.0/secp256k1
 
 // Инициализация Base58Check (нужна фабрика с sha256)
 const b58c = base58check(sha256);
+// Номер версии ассетов для борьбы с кэшированием (cache-busting)
+const __assetVer = (()=>{ try{ const u=new URL(import.meta.url); const v=u.searchParams.get('v'); return v || String(Math.floor(Date.now()/1000)); }catch{ return String(Math.floor(Date.now()/1000)); } })();
 
 // --------- Привязка DOM-элементов (чтобы кнопки и UI работали) ---------
 const $ = (id)=> document.getElementById(id);
@@ -249,7 +251,7 @@ let workersLikelyAvailable = null;
 async function selfTestWorkers(timeoutMs=700){
   if(typeof Worker === 'undefined'){ workersLikelyAvailable = false; return false; }
   try{
-    const w = new Worker(new URL('./worker.js', import.meta.url), { type:'module' });
+  const w = new Worker(new URL(`./worker.js?v=${encodeURIComponent(__assetVer)}`, import.meta.url), { type:'module' });
     let resolved = false;
     const resP = new Promise((resolve)=>{
       w.onmessage = (ev)=>{ if(ev?.data?.type==='pong' && !resolved){ resolved=true; try{ w.terminate(); }catch{} resolve(true); } };
@@ -819,7 +821,7 @@ function scanWorkers({targetAddr,targetH160,start,stop,chunkSize, format, order,
   };
 
   for(let i=0;i<W;i++){
-    const w=new Worker(new URL('./worker.js', import.meta.url), { type:'module' });
+  const w=new Worker(new URL(`./worker.js?v=${encodeURIComponent(__assetVer)}`, import.meta.url), { type:'module' });
     const meta={checked:0, done:false};
     workerMeta.push(meta);
     w.onmessage=(ev)=>{
@@ -1013,7 +1015,7 @@ function scanWorkersVerifyDirect({targetH160,start,stop,chunkSize, format}){
   let everProgress=false;
   // Тёплый старт: один воркер инициализирует WASM/EC
   try{
-    const warm = new Worker(new URL('./worker.js', import.meta.url), { type:'module' });
+  const warm = new Worker(new URL(`./worker.js?v=${encodeURIComponent(__assetVer)}`, import.meta.url), { type:'module' });
     let done=false; warm.onmessage=(ev)=>{ done=true; try{ warm.terminate(); }catch{} };
     warm.postMessage({ type:'warmup' });
     setTimeout(()=>{ if(!done){ try{ warm.terminate(); }catch{} } }, 300);
@@ -1024,7 +1026,7 @@ function scanWorkersVerifyDirect({targetH160,start,stop,chunkSize, format}){
   for(let wi=0;wi<W;wi++){
     const i = perm[wi];
     let w;
-    try{ w=new Worker(new URL('./worker.js', import.meta.url), { type:'module' }); }
+  try{ w=new Worker(new URL(`./worker.js?v=${encodeURIComponent(__assetVer)}`, import.meta.url), { type:'module' }); }
     catch(e){ log('Не удалось создать worker: '+(e?.message||e)); continue; }
     const meta={checked:0, done:false}; workerMeta.push(meta); workerPool.push(w);
     // Interleaved: каждому воркеру класс по модулю W: k = start + i + t*W

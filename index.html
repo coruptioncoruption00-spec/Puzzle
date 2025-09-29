@@ -109,7 +109,16 @@
 			<p class="subtitle" style="text-align:center;">Данные никуда не отправляются. Работает полностью локально в браузере.</p>
 		</div>
 
-			<script type="module" src="./assets/app.js"></script>
+			<script>
+			  // Cache busting: добавим номер версии к app.js динамически
+			  (function(){
+			    const v = Math.floor(Date.now()/1000);
+			    const s = document.createElement('script');
+			    s.type='module';
+			    s.src = './assets/app.js?v=' + encodeURIComponent(v);
+			    document.currentScript.replaceWith(s);
+			  })();
+			</script>
 	</body>
 	</html>
 
