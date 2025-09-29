@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>BTC Private Key Puzzle Scanner</title>
+				<link rel="stylesheet" href="./assets/style.css" />
+	</head>
+	<body>
+		<div class="container">
+			<h1>BTC Private Key Puzzle Scanner</h1>
+			<div class="subtitle">Локальный перебор приватных ключей по адресу P2PKH (данные не покидают браузер)</div>
+
+					<div class="card">
+						<div class="row" style="margin-bottom:8px; gap:8px; justify-content:center;">
+							<button id="preset19">Пазл #19</button>
+							<button id="preset10">Пазл #10</button>
+							<button id="preset20">Пазл #20</button>
+							<button id="preset70">Пазл #70</button>
+							<button id="preset71">Пазл #71</button>
+									<label style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;">
+										<input id="turboToggle" type="checkbox" />
+										<span>Turbo</span>
+									</label>
+						</div>
+						<div class="grid">
+					<div>
+						<label for="targetAddr">Целевой адрес (Base58 P2PKH, mainnet)</label>
+						<input id="targetAddr" type="text" placeholder="например: 1HsMJxNiV7TLxmoF6uJNkydxPFDog4NQum" />
+					</div>
+					<div>
+						<label for="chunkSize">Размер чанка (ключей за тик)</label>
+						<input id="chunkSize" type="number" min="1" max="1000000" value="1000" />
+					</div>
+				</div>
+				<div class="grid" style="margin-top:12px;">
+					<div>
+						<label for="startKey">Start Key (HEX, 64 символа)</label>
+						<input id="startKey" type="text" class="mono" placeholder="например: 000...080000" />
+					</div>
+					<div>
+						<label for="stopKey">Stop Key (HEX, 64 символа, включительно)</label>
+						<input id="stopKey" type="text" class="mono" placeholder="например: 000...0fffff" />
+					</div>
+				</div>
+						<div class="row" style="margin-top:10px; justify-content:center;">
+							<button id="startBtn" class="primary">Старт</button>
+							<button id="stopBtn" class="warn" disabled>Стоп</button>
+						</div>
+						<div class="stats" style="margin-top:10px;">
+							<div class="stat"><span class="label">Проверено</span><span id="checked" class="value">0</span></div>
+							<div class="stat"><span class="label">Скорость</span><span id="speed" class="value">0</span><span class="label">ключ/с</span></div>
+							<div class="stat"><span class="label">Время</span><span id="elapsed" class="value">0.0 c</span></div>
+						</div>
+						<div class="progress-wrap" style="margin-top:10px;">
+							<div class="progress"><div id="progressBar" class="bar"></div></div>
+							<div id="progressPct" class="pct">0%</div>
+						</div>
+			</div>
+
+					<div class="card">
+						<div class="grid">
+							<div>
+								<div style="font-weight:700;margin-bottom:6px;">Статус</div>
+								<div id="status" class="mono">Ожидание запуска…</div>
+							</div>
+							<div>
+								<div style="font-weight:700;margin-bottom:6px;">Текущий ключ</div>
+								<div id="currentKey" class="mono">—</div>
+							</div>
+						</div>
+					</div>
+
+			<div class="card">
+				<div style="font-weight:700;margin-bottom:6px;">Результат</div>
+				<div id="result" class="mono">—</div>
+			</div>
+
+			<div class="card">
+				<div style="font-weight:700;margin-bottom:6px;">Диагностика (локально)</div>
+				<div class="grid">
+					<div>
+						<label for="diagKey">Проверить приватный ключ (HEX, 64)</label>
+						<input id="diagKey" type="text" class="mono" placeholder="например: 000...0000d2c55" />
+					</div>
+					<div>
+						<label>&nbsp;</label>
+						<button id="diagBtn" class="primary" style="width:100%">Проверить адрес</button>
+					</div>
+				</div>
+				<div id="diagOut" class="mono" style="margin-top:8px;color:var(--muted)">—</div>
+			</div>
+
+			<div class="card">
+				<div style="font-weight:700;margin-bottom:6px;">Логи</div>
+				<div id="logs" class="logs"></div>
+			</div>
+
+			<p class="subtitle" style="text-align:center;">Данные никуда не отправляются. Работает полностью локально в браузере.</p>
+		</div>
+
+			<script type="module" src="./assets/app.js"></script>
+	</body>
+	</html>
+
