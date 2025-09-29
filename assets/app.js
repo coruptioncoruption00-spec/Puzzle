@@ -1,12 +1,9 @@
 // Импорты (ESM через CDN)
 import { getPublicKey } from 'https://esm.sh/@noble/secp256k1@2.0.0';
-import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
-import { ripemd160 } from 'https://esm.sh/@noble/hashes@1.4.0/ripemd160';
-import { base58check } from 'https://esm.sh/@scure/base@1.1.5';
 import { secp256k1 as secpC } from 'https://esm.sh/@noble/curves@1.4.0/secp256k1';
+// Общие утилиты
+import { b58c, EC_ORDER, u8, bigIntTo32, writeBigTo32, pubkeyHash160, addrFromH160, privToWIF, eqH160, decodeBase58P2PKH, sha256, ripemd160 } from './common.js';
 
-// Инициализация Base58Check (нужна фабрика с sha256)
-const b58c = base58check(sha256);
 // Номер версии ассетов для борьбы с кэшированием (cache-busting)
 const __assetVer = (()=>{ try{ const u=new URL(import.meta.url); const v=u.searchParams.get('v'); return v || String(Math.floor(Date.now()/1000)); }catch{ return String(Math.floor(Date.now()/1000)); } })();
 
@@ -30,6 +27,7 @@ const puzzleNumInput = $('puzzleNum');
 // Диагностика
 const diagKeyInput = $('diagKey');
 const diagBtn = $('diagBtn');
+const diagOut = $('diagOut');
 // Переключатели (могут отсутствовать в HTML)
 const quietToggle = $('quietToggle') || null;
 const turboToggle = $('turboToggle') || null;
@@ -115,29 +113,10 @@ function log(line){
   logsEl.scrollTop = logsEl.scrollHeight;
 }
 
-// Utils
-const hexToBytes=(hex)=>{ if(hex.startsWith('0x')) hex=hex.slice(2); if(hex.length%2!==0) throw new Error('HEX длина нечетная'); const out=new Uint8Array(hex.length/2); for(let i=0;i<out.length;i++) out[i]=parseInt(hex.slice(i*2,i*2+2),16); return out; };
-const bigIntTo32=(x)=>{ if(x<0n) throw new Error('Отрицательный ключ'); const out=new Uint8Array(32); let v=x; for(let i=31;i>=0;i--){ out[i]=Number(v & 0xffn); v >>= 8n; } if(v!==0n) throw new Error('Слишком большое значение для приватного ключа'); return out; };
-const u8=(arr)=>new Uint8Array(arr);
-// Запись 32-байтного BigInt в буфер (big-endian)
-function writeBigTo32(dst, off, bi){ let x=bi; for(let i=31;i>=0;i--){ dst[off+i]=Number(x & 0xffn); x >>= 8n; } }
-
-// Хелперы адресов
-function addrFromH160(h160){ const payload=new Uint8Array(21); payload[0]=0x00; payload.set(h160,1); return b58c.encode(payload); }
+// Хелпер адреса из pubkey
 function pubkeyToP2PKH(pub){ const h160=ripemd160(sha256(pub)); return addrFromH160(h160); }
-function pubkeyHash160(pub){ return ripemd160(sha256(pub)); }
-function privToWIF(priv32,compressed){ const body=compressed?u8([0x80,...priv32,0x01]):u8([0x80,...priv32]); return b58c.encode(body); }
 
-// Примечание: Baby-step Giant-step здесь не используется, т.к. цель — HASH160(pub(k)).
-// Строгая валидация: доверяем только Base58Check-декодированию и версии 0x00 (mainnet P2PKH)
-function decodeBase58P2PKH(addr){ let raw; try{ raw=b58c.decode(addr); }catch(e){ throw new Error('Некорректный Base58Check адрес'); }
-  if(!(raw instanceof Uint8Array)||raw.length!==21) throw new Error('Некорректная длина адреса');
-  if(raw[0]!==0x00) throw new Error('Ожидается только mainnet P2PKH (префикс 0x00)');
-  return raw.slice(1);
-}
-function eqBytes(a,b){ if(a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }
-// Быстрое сравнение именно для хеша160 (20 байт)
-function eqH160(a,b){ if(a.length!==20||b.length!==20) return false; const da=new DataView(a.buffer,a.byteOffset,20); const db=new DataView(b.buffer,b.byteOffset,20); for(let i=0;i<20;i+=4){ if(da.getUint32(i,true)!==db.getUint32(i,true)) return false; } return true; }
+// eqBytes больше не используем — есть eqH160 для 20 байт
 
 // Состояние
 let scanning=false, abortFlag=false;
@@ -275,7 +254,6 @@ try{
 }catch{}
 
 // EC
-const EC_ORDER=BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
 const G=secpC.ProjectivePoint.BASE;
 // Прекомпьют базовой точки ускоряет умножения (инициализация P0, Δ, LEN)
 try{ secpC.utils?.precompute?.(8); }catch{}
@@ -335,7 +313,7 @@ async function scanRange({targetAddr,startHex,stopHex,chunkSize}){
           resolve(found);
         };
         
-        // Запускаем турбо-верификацию
+  // Запускаем турбо-верификацию (внутренний алгоритм EC-step)
         scanWorkersVerifyDirect({
           targetH160, 
           start, 
@@ -434,10 +412,10 @@ function scanLinear({targetAddr,targetH160,start,stop,chunkSize, format, randomi
         const k = start + BigInt(kIdx);
         const priv=bigIntTo32(k);
         if(format!=='uncompressed'){
-          const hC=pubkeyHash160(getPublicKey(priv,true)); if(eqBytes(hC,targetH160)){ const payload=new Uint8Array(21); payload[0]=0x00; payload.set(hC,1); const addrStr=b58c.encode(payload); const wif=privToWIF(priv,true); emitFound(k,true,addrStr,wif); return; }
+          const hC=pubkeyHash160(getPublicKey(priv,true)); if(eqH160(hC,targetH160)){ const payload=new Uint8Array(21); payload[0]=0x00; payload.set(hC,1); const addrStr=b58c.encode(payload); const wif=privToWIF(priv,true); emitFound(k,true,addrStr,wif); return; }
         }
         if(format!=='compressed'){
-          const hU=pubkeyHash160(getPublicKey(priv,false)); if(eqBytes(hU,targetH160)){ const payload=new Uint8Array(21); payload[0]=0x00; payload.set(hU,1); const addrStr=b58c.encode(payload); const wif=privToWIF(priv,false); emitFound(k,false,addrStr,wif); return; }
+          const hU=pubkeyHash160(getPublicKey(priv,false)); if(eqH160(hU,targetH160)){ const payload=new Uint8Array(21); payload[0]=0x00; payload.set(hU,1); const addrStr=b58c.encode(payload); const wif=privToWIF(priv,false); emitFound(k,false,addrStr,wif); return; }
         }
         counters.checked++; counters.checkedBig+=1n; if((counters.checked & 0xff)===0) currentKeyEl.textContent='0x'+k.toString(16).padStart(64,'0');
         idx = mod(idx + step, lenNum);
@@ -1248,8 +1226,8 @@ diagBtn?.addEventListener('click',()=>{
     const curStart = BigInt('0x'+(startKeyInput.value||'0'));
     const curStop = BigInt('0x'+(stopKeyInput.value||'0'));
     const inRange = (k>=curStart && k<=curStop);
-    diagOut.textContent = `Compressed: ${addrC}\nUncompressed: ${addrU}\nВ диапазоне текущего выбора: ${inRange?'да':'нет'}`;
-  }catch(e){ diagOut.textContent = 'Ошибка: '+(e?.message||e); }
+    if (diagOut) diagOut.textContent = `Compressed: ${addrC}\nUncompressed: ${addrU}\nВ диапазоне текущего выбора: ${inRange?'да':'нет'}`;
+  }catch(e){ if (diagOut) diagOut.textContent = 'Ошибка: '+(e?.message||e); }
 });
 
 // Шард‑ссылки отключены

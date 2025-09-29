@@ -1,16 +1,10 @@
 // worker.js — параллельный сканер диапазона
 import { getPublicKey } from 'https://esm.sh/@noble/secp256k1@2.0.0';
-import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
-import { ripemd160 } from 'https://esm.sh/@noble/hashes@1.4.0/ripemd160';
-import { base58check } from 'https://esm.sh/@scure/base@1.1.5';
 import { secp256k1 as secpC } from 'https://esm.sh/@noble/curves@1.4.0/secp256k1';
+import { b58c, u8, bigIntTo32, writeBigTo32, pubkeyHash160 as h160JsCommon, addrFromH160 as toAddr, privToWIF as wif, EC_ORDER as EC_N, sha256, ripemd160, eqH160 } from './common.js';
 
-const b58c=base58check(sha256);
-const u8=(a)=>new Uint8Array(a);
-const hexToBytes=(hex)=>{ if(hex.startsWith('0x')) hex=hex.slice(2); if(hex.length%2!==0) throw new Error('HEX длина нечетная'); const out=new Uint8Array(hex.length/2); for(let i=0;i<out.length;i++) out[i]=parseInt(hex.slice(i*2,i*2+2),16); return out; };
-const bigIntTo32=(x)=>{ let hex=x.toString(16); if(hex.length>64) throw new Error('Большое значение'); hex=hex.padStart(64,'0'); return hexToBytes(hex); };
 // HASH160: JS по умолчанию, ускорение через WASM при наличии
-const h160Js=(pub)=>ripemd160(sha256(pub));
+const h160Js=(pub)=>h160JsCommon(pub);
 let __wasmReady=false, __wasmErr=false, __shaWasm=null, __ripWasm=null;
 async function ensureWasm(){
   if(__wasmReady || __wasmErr) return __wasmReady;
@@ -42,22 +36,9 @@ function h160Batch(inputs, count){
   for(let i=0;i<n;i++){ out[i]=h160Js(inputs[i]); }
   return out;
 }
-const eq=(a,b)=>{ if(a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; };
-const toAddr=(h)=>{ const p=new Uint8Array(21); p[0]=0x00; p.set(h,1); return b58c.encode(p); };
-const wif=(priv32,compressed)=>{ const body=compressed?u8([0x80,...priv32,0x01]):u8([0x80,...priv32]); return b58c.encode(body); };
 const G = secpC.ProjectivePoint.BASE;
 try{ secpC.utils?.precompute?.(8); }catch{}
-// Порядок группы для mod n операций
-const EC_N = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
 const modN = (x)=>{ let r = x % EC_N; if(r<0n) r += EC_N; return r; };
-function writeBigTo32(dst, off, bi){ let x=bi; for(let i=31;i>=0;i--){ dst[off+i]=Number(x & 0xffn); x >>= 8n; } }
-function eqH160(a,b){
-  if(a.length!==20||b.length!==20) return false;
-  const da=new DataView(a.buffer,a.byteOffset,20);
-  const db=new DataView(b.buffer,b.byteOffset,20);
-  for(let i=0;i<16;i+=4){ if(da.getUint32(i,true)!==db.getUint32(i,true)) return false; }
-  return da.getUint32(16,true)===db.getUint32(16,true);
-}
 function prefixBytes(a,b){
   const n = Math.min(a.length,b.length);
   let i=0; while(i<n && a[i]===b[i]) i++; return i;
@@ -130,8 +111,8 @@ self.onmessage=async (e)=>{
         const upto=cur+BigInt(chunk)-1n;
         for(; cur<=end && cur<=upto; cur+=BigInt(stride)){
           const priv=bigIntTo32(cur);
-          const hC=h160Fast(getPublicKey(priv,true)); if(eq(hC,targetH160)){ const addr=toAddr(hC); const keyWif=wif(priv,true); self.postMessage({type:'found', key:cur.toString(16).padStart(64,'0'), addr, wif:keyWif, compressed:true}); return; }
-          const hU=h160Fast(getPublicKey(priv,false)); if(eq(hU,targetH160)){ const addr=toAddr(hU); const keyWif=wif(priv,false); self.postMessage({type:'found', key:cur.toString(16).padStart(64,'0'), addr, wif:keyWif, compressed:false}); return; }
+          const hC=h160Fast(getPublicKey(priv,true)); if(eqH160(hC,targetH160)){ const addr=toAddr(hC); const keyWif=wif(priv,true); self.postMessage({type:'found', key:cur.toString(16).padStart(64,'0'), addr, wif:keyWif, compressed:true}); return; }
+          const hU=h160Fast(getPublicKey(priv,false)); if(eqH160(hU,targetH160)){ const addr=toAddr(hU); const keyWif=wif(priv,false); self.postMessage({type:'found', key:cur.toString(16).padStart(64,'0'), addr, wif:keyWif, compressed:false}); return; }
           checked++;
         }
         self.postMessage({type:'progress', checked});
